@@ -3,3 +3,7 @@ uvicorn
 python-dotenv
 requests
 pydantic
+sqlalchemy
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart

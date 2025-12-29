@@ -22,6 +22,18 @@
                 <div class="nav-item" data-tab="music">Suno音乐</div>
                 <div class="nav-item" data-tab="avatar">Heygem数字人</div>
             </div>
+            <div class="nav-auth">
+                <div id="guest-actions">
+                    <button class="btn-auth" onclick="showModal('auth-modal', 'login')">登录</button>
+                    <button class="btn-auth btn-primary" onclick="showModal('auth-modal', 'register')">注册</button>
+                </div>
+                <div id="user-actions" style="display: none;">
+                    <span class="user-balance" onclick="showModal('recharge-modal')">💎 <span id="display-balance">0</span></span>
+                    <button class="btn-recharge" onclick="showModal('recharge-modal')">充值</button>
+                    <span id="display-username" style="margin: 0 10px; font-weight: 600;">User</span>
+                    <button class="btn-logout" id="btn-logout">退出</button>
+                </div>
+            </div>
         </nav>
 
         <main class="content-wrapper">
@@ -133,6 +145,63 @@
             </div>
 
         </main>
+    </div>
+
+    <!-- 登录/注册弹窗 -->
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('auth-modal')">&times;</span>
+            <h2 id="auth-title">登录</h2>
+            <form id="auth-form">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="auth-username" required placeholder="请输入用户名">
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="auth-password" required placeholder="请输入密码">
+                </div>
+                <div class="form-group hidden" id="email-group">
+                    <label>邮箱 (可选)</label>
+                    <input type="email" id="auth-email" placeholder="用于找回密码">
+                </div>
+                <button type="submit" class="primary-btn full-width" id="btn-auth-submit">登录</button>
+            </form>
+            <p class="auth-switch" style="text-align: center; margin-top: 15px; font-size: 14px;">
+                <span id="auth-switch-text">还没有账号？</span> 
+                <a href="#" id="auth-switch-link" style="color: #ff4757;">去注册</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- 充值弹窗 -->
+    <div id="recharge-modal" class="modal hidden">
+        <div class="modal-content large">
+            <span class="close-modal" onclick="closeModal('recharge-modal')">&times;</span>
+            <h2 style="text-align: center; margin-bottom: 20px;">💰 购买算力</h2>
+            <div class="pricing-grid">
+                <div class="price-card">
+                    <h3>基础包</h3>
+                    <div class="price">$10</div>
+                    <div class="credits">1000 积分</div>
+                    <button class="primary-btn" onclick="recharge(10)">购买</button>
+                </div>
+                <div class="price-card popular">
+                    <h3>标准包</h3>
+                    <div class="price">$50</div>
+                    <div class="credits">5500 积分</div>
+                    <div class="tag">最热</div>
+                    <button class="primary-btn" onclick="recharge(50)">购买</button>
+                </div>
+                <div class="price-card">
+                    <h3>专业包</h3>
+                    <div class="price">$100</div>
+                    <div class="credits">12000 积分</div>
+                    <button class="primary-btn" onclick="recharge(100)">购买</button>
+                </div>
+            </div>
+            <p style="text-align: center; margin-top: 20px; color: #64748b; font-size: 12px;">* 这是一个演示支付页面，点击购买将直接模拟成功。</p>
+        </div>
     </div>
 
     <!-- 底部版权 -->

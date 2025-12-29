@@ -1,19 +1,33 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+from typing import Optional
 import time
 import os
-import requests
 from dotenv import load_dotenv
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+
+# 尝试导入数据库模块 (兼容不同的运行方式)
+try:
+    from backend.database import SessionLocal, engine, Base, User, Transaction
+except ImportError:
+    from database import SessionLocal, engine, Base, User, Transaction
 
 # 加载环境变量
 load_dotenv()
 
+# 初始化数据库表
+Base.metadata.create_all(bind=engine)
+
 # 全局配置存储 (模拟数据库)
 APP_CONFIG = {
-    "admin_password": "admin",  # 默认密码
+    "admin_password": "admin",
     "mock_mode": True,
     "sora_api_key": "",
     "sora_api_url": "",
@@ -22,29 +36,102 @@ APP_CONFIG = {
     "heygem_api_key": ""
 }
 
+# 定价表 (Credits)
+PRICING = {
+    "video": 50.0,
+    "image": 10.0,
+    "music": 20.0,
+    "avatar": 30.0
+}
+
+# JWT 配置
+SECRET_KEY = "your-secret-key-keep-it-secret" # 生产环境应从 env 读取
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 300
+
+# 密码哈希工具
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+
+app = FastAPI()
+
 # 尝试从环境变量初始化配置
 if os.getenv("SORA_API_KEY"):
     APP_CONFIG["sora_api_key"] = os.getenv("SORA_API_KEY")
 if os.getenv("MOCK_MODE"):
     APP_CONFIG["mock_mode"] = os.getenv("MOCK_MODE").lower() == "true"
 
-app = FastAPI()
-
-# 挂载前端静态文件 (注意：这行代码最好放在 API 路由之后，或者使用特定路径)
-# 我们将前端文件放在 'frontend' 目录，并挂载到 '/static' 路径下
-# 为了方便直接访问根目录 '/' 显示网页，我们稍微调整一下逻辑
-
-
-# 配置 CORS，允许前端跨域访问
+# 配置 CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该设置为具体的前端域名
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 定义请求体模型
+# --- 依赖项 ---
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+# --- Pydantic Models ---
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    email: Optional[str] = None
+
+class UserOut(BaseModel):
+    username: str
+    email: Optional[str] = None
+    balance: float
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class RechargeRequest(BaseModel):
+    amount: float # 美元金额
+
 class ConfigUpdateRequest(BaseModel):
     password: str
     mock_mode: bool
@@ -73,6 +160,66 @@ class AvatarRequest(BaseModel):
     prompt: str
     text: str
 
+# --- Auth Routes ---
+
+@app.post("/api/auth/register", response_model=UserOut)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.username == user.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    new_user = User(username=user.username, hashed_password=hashed_password, email=user.email, balance=10.0) # 注册送10积分
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.post("/api/auth/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/user/me", response_model=UserOut)
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+# --- Payment Routes ---
+
+@app.post("/api/payment/recharge")
+async def recharge(request: RechargeRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # 简单的汇率逻辑：1 USD = 100 Credits
+    credits_amount = request.amount * 100
+    
+    # 记录交易
+    transaction = Transaction(
+        user_id=current_user.id,
+        amount=request.amount,
+        credits=credits_amount,
+        type="recharge",
+        description=f"Recharge ${request.amount}",
+        timestamp=time.time()
+    )
+    
+    # 更新余额
+    current_user.balance += credits_amount
+    
+    db.add(transaction)
+    db.commit()
+    db.refresh(current_user)
+    
+    return {"status": "success", "new_balance": current_user.balance, "message": f"Successfully recharged {credits_amount} credits"}
+
 # --- Admin API ---
 @app.post("/api/admin/login")
 async def admin_login(request: LoginRequest):
@@ -99,97 +246,102 @@ async def update_config(request: ConfigUpdateRequest):
     
     return {"status": "success", "message": "Configuration updated", "config": APP_CONFIG}
 
-# 模拟的 Sora2 API 调用函数
-def call_sora2_api(prompt: str, size: str, duration: int):
-    # 使用全局配置
-    api_key = APP_CONFIG["sora_api_key"]
-    
-    # 如果没有配置 API Key，或者显式开启了模拟模式，则返回模拟数据
-    if not api_key or APP_CONFIG["mock_mode"]:
-        print(f"Mocking Sora2 API call with prompt: {prompt}")
-        time.sleep(3)  # 模拟网络延迟
-        return {
-            "status": "success",
-            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", # 一个公共测试视频
-            "message": "这是模拟生成的视频。请在后台配置真实的 API Key 以启用真实调用。"
-        }
-    
-    # 真实 API 调用逻辑 (这里仅为示例，实际需要对接真实接口)
-    # response = requests.post(...)
-    return {"status": "error", "message": "Real API call not implemented in this demo"}
+# --- Generation API Helper ---
+
+def deduct_credits(user: User, cost: float, db: Session):
+    if user.balance < cost:
+        raise HTTPException(status_code=402, detail=f"Insufficient balance. Required: {cost}, Available: {user.balance}")
+    user.balance -= cost
+    # 记录消费
+    tx = Transaction(user_id=user.id, amount=0, credits=-cost, type="usage", description="API Usage", timestamp=time.time())
+    db.add(tx)
+    db.commit()
+
+# --- Generation Endpoints ---
 
 @app.post("/api/generate-video")
-async def generate_video(request: VideoRequest):
+async def generate_video(request: VideoRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deduct_credits(current_user, PRICING["video"], db)
+    
     if not request.prompt:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
     
-    try:
-        result = call_sora2_api(request.prompt, request.size, request.duration)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # Mock Call
+    if APP_CONFIG["mock_mode"]:
+        time.sleep(3)
+        return {
+            "status": "success",
+            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "message": "模拟生成视频成功 (-50 Credits)"
+        }
+    return {"status": "error", "message": "Real API not configured"}
 
 @app.post("/api/generate-image")
-async def generate_image(request: ImageRequest):
+async def generate_image(request: ImageRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deduct_credits(current_user, PRICING["image"], db)
+    
     if not request.prompt:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
     
-    # Mock Image Generation
-    time.sleep(2)
-    return {
-        "status": "success",
-        "image_url": "https://picsum.photos/1024/1024", # 随机图片
-        "message": "这是模拟生成的图片 (NanoPro)"
-    }
+    if APP_CONFIG["mock_mode"]:
+        time.sleep(2)
+        return {
+            "status": "success",
+            "image_url": "https://picsum.photos/1024/1024",
+            "message": "模拟生成图片成功 (-10 Credits)"
+        }
+    return {"status": "error", "message": "Real API not configured"}
 
 @app.post("/api/generate-music")
-async def generate_music(request: MusicRequest):
+async def generate_music(request: MusicRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deduct_credits(current_user, PRICING["music"], db)
+    
     if not request.prompt:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
     
-    # Mock Music Generation
-    time.sleep(2)
-    return {
-        "status": "success",
-        "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", # 随机音频
-        "message": "这是模拟生成的音乐 (Suno)"
-    }
+    if APP_CONFIG["mock_mode"]:
+        time.sleep(2)
+        return {
+            "status": "success",
+            "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+            "message": "模拟生成音乐成功 (-20 Credits)"
+        }
+    return {"status": "error", "message": "Real API not configured"}
 
 @app.post("/api/generate-avatar")
-async def generate_avatar(request: AvatarRequest):
+async def generate_avatar(request: AvatarRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deduct_credits(current_user, PRICING["avatar"], db)
+    
     if not request.text:
         raise HTTPException(status_code=400, detail="Text cannot be empty")
     
-    # Mock Avatar Generation
-    time.sleep(2)
-    return {
-        "status": "success",
-        "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4", # 另一个测试视频
-        "message": "这是模拟生成的数字人视频 (Heygem)"
-    }
+    if APP_CONFIG["mock_mode"]:
+        time.sleep(2)
+        return {
+            "status": "success",
+            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+            "message": "模拟生成数字人成功 (-30 Credits)"
+        }
+    return {"status": "error", "message": "Real API not configured"}
 
-# 挂载静态文件目录
-# 在 Vercel 环境中，文件结构可能略有不同，我们需要确保路径正确
-# Vercel 会将所有文件部署到根目录
+# --- Static Files ---
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir) # 获取 backend 的上一级，即项目根目录
+project_root = os.path.dirname(current_dir)
 frontend_dir = os.path.join(project_root, "frontend")
 
 if not os.path.exists(frontend_dir):
-    # 如果找不到，尝试直接在当前目录找 frontend (兼容 Vercel 的某些情况)
     frontend_dir = os.path.join(current_dir, "frontend")
 
-# 只有当目录存在时才挂载，防止报错
 if os.path.exists(frontend_dir):
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
 @app.get("/")
 async def read_index():
-    # 优先尝试返回 index.html
     index_path = os.path.join(frontend_dir, 'index.html')
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return {"message": "Sora2 Video Generator API is running. Frontend not found."}
+    return {"message": "API Running"}
 
 if __name__ == "__main__":
     import uvicorn
