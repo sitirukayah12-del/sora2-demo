@@ -1,45 +1,49 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const generateBtn = document.getElementById('generateBtn');
-    const promptInput = document.getElementById('prompt');
-    const sizeSelect = document.getElementById('size');
-    const durationSelect = document.getElementById('duration');
-    
-    const loadingDiv = document.getElementById('loading');
-    const videoContainer = document.getElementById('videoContainer');
-    const resultVideo = document.getElementById('resultVideo');
-    const resultMessage = document.getElementById('resultMessage');
-    const errorContainer = document.getElementById('errorContainer');
-    const errorText = document.querySelector('.error-text');
+    // === 1. Tab 切换逻辑 ===
+    const navItems = document.querySelectorAll('.nav-item');
+    const tabContents = document.querySelectorAll('.tab-content');
 
-    generateBtn.addEventListener('click', async () => {
-        const prompt = promptInput.value.trim();
-        
-        if (!prompt) {
-            alert('请输入提示词！');
-            return;
-        }
+    function switchTab(tabId) {
+        // 更新导航栏状态
+        navItems.forEach(item => {
+            if (item.dataset.tab === tabId) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
 
-        // Reset UI
-        generateBtn.disabled = true;
-        loadingDiv.classList.remove('hidden');
-        videoContainer.classList.add('hidden');
-        errorContainer.classList.add('hidden');
-        resultVideo.pause();
-        resultVideo.src = "";
+        // 更新内容显示
+        tabContents.forEach(content => {
+            if (content.id === `${tabId}-section`) {
+                content.classList.add('active');
+            } else {
+                content.classList.remove('active');
+            }
+        });
+    }
 
-        const payload = {
-            prompt: prompt,
-            size: sizeSelect.value,
-            duration: parseInt(durationSelect.value)
-        };
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            switchTab(item.dataset.tab);
+        });
+    });
 
+    // 暴露给全局以便 HTML onclick 调用
+    window.switchTab = switchTab;
+
+    // === 2. 通用 API 调用逻辑 ===
+    const loadingOverlay = document.getElementById('global-loading');
+
+    async function callApi(endpoint, payload, resultContainerId, renderCallback) {
         try {
-            // 使用相对路径，自动适配当前域名
-            const response = await fetch('/api/generate-video', {
+            loadingOverlay.classList.remove('hidden');
+            const resultContainer = document.getElementById(resultContainerId);
+            resultContainer.innerHTML = ''; // 清空之前的结果
+
+            const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
@@ -49,22 +53,93 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-
-            // 显示结果
-            resultVideo.src = data.video_url;
-            resultMessage.textContent = data.message || '';
-            videoContainer.classList.remove('hidden');
-            
-            // 自动播放
-            resultVideo.play().catch(e => console.log("自动播放被阻止", e));
+            renderCallback(resultContainer, data);
 
         } catch (error) {
-            console.error('Error:', error);
-            errorText.textContent = `生成失败: ${error.message}`;
-            errorContainer.classList.remove('hidden');
+            console.error('API Error:', error);
+            alert(`生成失败: ${error.message}`);
         } finally {
-            loadingDiv.classList.add('hidden');
-            generateBtn.disabled = false;
+            loadingOverlay.classList.add('hidden');
         }
+    }
+
+    // === 3. 各模块功能绑定 ===
+
+    // --- 文生图 (NanoPro) ---
+    document.getElementById('generateImageBtn').addEventListener('click', () => {
+        const prompt = document.getElementById('image-prompt').value.trim();
+        if (!prompt) return alert('请输入提示词');
+
+        callApi('/api/generate-image', { prompt }, 'image-result', (container, data) => {
+            container.innerHTML = `
+                <img src="${data.image_url}" class="generated-image" alt="生成的图片">
+                <p>${data.message}</p>
+            `;
+        });
+    });
+
+    // --- Sora2 视频 ---
+    document.getElementById('generateVideoBtn').addEventListener('click', () => {
+        const prompt = document.getElementById('video-prompt').value.trim();
+        const size = document.getElementById('video-size').value;
+        const duration = parseInt(document.getElementById('video-duration').value);
+        if (!prompt) return alert('请输入提示词');
+
+        callApi('/api/generate-video', { prompt, size, duration }, 'video-result', (container, data) => {
+            container.innerHTML = `
+                <video controls width="100%" autoplay loop>
+                    <source src="${data.video_url}" type="video/mp4">
+                </video>
+                <p>${data.message}</p>
+            `;
+        });
+    });
+
+    // --- Veo 视频 (复用 Video 接口) ---
+    document.getElementById('generateVeoBtn').addEventListener('click', () => {
+        const prompt = document.getElementById('veo-prompt').value.trim();
+        if (!prompt) return alert('请输入提示词');
+
+        callApi('/api/generate-video', { prompt, size: "1920x1080", duration: 10 }, 'veo-result', (container, data) => {
+            container.innerHTML = `
+                <video controls width="100%" autoplay loop>
+                    <source src="${data.video_url}" type="video/mp4">
+                </video>
+                <p>Veo 模型生成结果: ${data.message}</p>
+            `;
+        });
+    });
+
+    // --- Suno 音乐 ---
+    document.getElementById('generateMusicBtn').addEventListener('click', () => {
+        const prompt = document.getElementById('music-prompt').value.trim();
+        if (!prompt) return alert('请输入提示词');
+
+        callApi('/api/generate-music', { prompt }, 'music-result', (container, data) => {
+            container.innerHTML = `
+                <div style="background: #f1f5f9; padding: 20px; border-radius: 10px;">
+                    <h3>🎵 音乐已生成</h3>
+                    <audio controls style="width: 100%; margin-top: 10px;">
+                        <source src="${data.audio_url}" type="audio/mpeg">
+                    </audio>
+                    <p>${data.message}</p>
+                </div>
+            `;
+        });
+    });
+
+    // --- Heygem 数字人 ---
+    document.getElementById('generateAvatarBtn').addEventListener('click', () => {
+        const text = document.getElementById('avatar-text').value.trim();
+        if (!text) return alert('请输入说话内容');
+
+        callApi('/api/generate-avatar', { prompt: "avatar", text }, 'avatar-result', (container, data) => {
+            container.innerHTML = `
+                <video controls width="100%" autoplay>
+                    <source src="${data.video_url}" type="video/mp4">
+                </video>
+                <p>${data.message}</p>
+            `;
+        });
     });
 });

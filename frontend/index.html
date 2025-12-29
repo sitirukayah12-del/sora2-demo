@@ -3,64 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sora2 视频生成器</title>
+    <title>AI 创意工坊 - Sora2/NanoPro/Suno</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Sora2 视频生成演示</h1>
-            <p>输入提示词，体验 AI 视频生成的力量</p>
-        </header>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <nav class="navbar">
+            <div class="logo">
+                <span class="logo-icon">🎨</span>
+            </div>
+            <div class="nav-links">
+                <div class="nav-item active" data-tab="image">NanoPro文生图</div>
+                <div class="nav-item" data-tab="canvas">Nano2画布</div>
+                <div class="nav-item" data-tab="video">Sora2视频</div>
+                <div class="nav-item" data-tab="veo">Veo视频</div>
+                <div class="nav-item" data-tab="music">Suno音乐</div>
+                <div class="nav-item" data-tab="avatar">Heygem数字人</div>
+            </div>
+        </nav>
 
-        <main>
-            <div class="input-section">
-                <div class="form-group">
-                    <label for="prompt">提示词 (Prompt):</label>
-                    <textarea id="prompt" placeholder="描述你想生成的视频内容... 例如：一只在赛博朋克城市中飞行的金色巨龙"></textarea>
+        <main class="content-wrapper">
+            <!-- 1. NanoPro 文生图模块 -->
+            <section id="image-section" class="tab-content active">
+                <div class="hero-text">
+                    <h1>NanoPro 文生图</h1>
+                    <p>释放你的想象力，用文字创造惊艳的图像</p>
                 </div>
-
-                <div class="controls">
+                <div class="input-section">
                     <div class="form-group">
-                        <label for="size">分辨率:</label>
-                        <select id="size">
+                        <textarea id="image-prompt" placeholder="描述你想生成的图片内容... 例如：一只在太空漫步的赛博朋克猫咪"></textarea>
+                    </div>
+                    <button id="generateImageBtn" class="primary-btn">生成图片</button>
+                </div>
+                <div class="result-display" id="image-result">
+                    <!-- 结果将在这里显示 -->
+                </div>
+            </section>
+
+            <!-- 2. Nano2 画布 (占位) -->
+            <section id="canvas-section" class="tab-content">
+                <div class="hero-text">
+                    <h1>Nano2 智能画布</h1>
+                    <p>实时绘制，AI 实时补全（开发中...）</p>
+                </div>
+                <div class="placeholder-box">
+                    <p>🚧 此功能正在紧急开发中，敬请期待！</p>
+                    <button class="secondary-btn" onclick="switchTab('image')">先试试文生图</button>
+                </div>
+            </section>
+
+            <!-- 3. Sora2 视频模块 (原有的功能) -->
+            <section id="video-section" class="tab-content">
+                <div class="hero-text">
+                    <h1>Sora2 视频生成</h1>
+                    <p>输入提示词，体验 AI 视频生成的力量</p>
+                </div>
+                <div class="input-section">
+                    <div class="form-group">
+                        <textarea id="video-prompt" placeholder="描述你想生成的视频内容... 例如：一只在赛博朋克城市中飞行的金色巨龙"></textarea>
+                    </div>
+                    <div class="controls-row">
+                        <select id="video-size">
                             <option value="1024x1024">1:1 (1024x1024)</option>
                             <option value="1920x1080">16:9 (1920x1080)</option>
-                            <option value="1080x1920">9:16 (1080x1920)</option>
                         </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="duration">时长 (秒):</label>
-                        <select id="duration">
+                        <select id="video-duration">
                             <option value="5">5s</option>
                             <option value="10">10s</option>
-                            <option value="15">15s</option>
                         </select>
                     </div>
+                    <button id="generateVideoBtn" class="primary-btn">生成视频</button>
                 </div>
+                <div class="result-display" id="video-result">
+                    <!-- 结果将在这里显示 -->
+                </div>
+            </section>
 
-                <button id="generateBtn">生成视频</button>
+            <!-- 4. Veo 视频模块 (复用视频逻辑) -->
+            <section id="veo-section" class="tab-content">
+                <div class="hero-text">
+                    <h1>Veo 高清视频</h1>
+                    <p>Google Veo 模型，生成更长更流畅的视频</p>
+                </div>
+                <div class="input-section">
+                    <div class="form-group">
+                        <textarea id="veo-prompt" placeholder="描述 Veo 视频内容..."></textarea>
+                    </div>
+                    <button id="generateVeoBtn" class="primary-btn">生成 Veo 视频</button>
+                </div>
+                <div class="result-display" id="veo-result"></div>
+            </section>
+
+            <!-- 5. Suno 音乐模块 -->
+            <section id="music-section" class="tab-content">
+                <div class="hero-text">
+                    <h1>Suno 音乐创作</h1>
+                    <p>输入歌词或风格，AI 帮你写歌</p>
+                </div>
+                <div class="input-section">
+                    <div class="form-group">
+                        <textarea id="music-prompt" placeholder="描述音乐风格或歌词... 例如：一首欢快的流行歌曲，关于夏天的海滩"></textarea>
+                    </div>
+                    <button id="generateMusicBtn" class="primary-btn">生成音乐</button>
+                </div>
+                <div class="result-display" id="music-result"></div>
+            </section>
+
+            <!-- 6. Heygem 数字人模块 -->
+            <section id="avatar-section" class="tab-content">
+                <div class="hero-text">
+                    <h1>Heygem 数字人</h1>
+                    <p>输入文字，让数字人开口说话</p>
+                </div>
+                <div class="input-section">
+                    <div class="form-group">
+                        <textarea id="avatar-text" placeholder="输入你想让数字人说的话..."></textarea>
+                    </div>
+                    <button id="generateAvatarBtn" class="primary-btn">生成数字人视频</button>
+                </div>
+                <div class="result-display" id="avatar-result"></div>
+            </section>
+
+            <!-- 通用 Loading 提示 -->
+            <div id="global-loading" class="loading-overlay hidden">
+                <div class="spinner"></div>
+                <p>AI 正在全力生成中...</p>
             </div>
 
-            <div class="result-section">
-                <div id="loading" class="hidden">
-                    <div class="spinner"></div>
-                    <p>正在调用 Sora2 生成视频，请稍候...</p>
-                </div>
-                
-                <div id="videoContainer" class="hidden">
-                    <h3>生成结果:</h3>
-                    <video id="resultVideo" controls width="100%">
-                        您的浏览器不支持 video 标签。
-                    </video>
-                    <p id="resultMessage"></p>
-                </div>
-
-                <div id="errorContainer" class="hidden">
-                    <p class="error-text"></p>
-                </div>
-            </div>
         </main>
     </div>
     <script src="/static/script.js"></script>
