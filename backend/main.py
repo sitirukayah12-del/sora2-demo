@@ -81,18 +81,27 @@ async def generate_video(request: VideoRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # 挂载静态文件目录
-# 确保 frontend 目录存在，如果后端运行在 backend 目录，则 frontend 在上一级
-# 如果我们在根目录运行 uvicorn，frontend 就在 ./frontend
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
-if not os.path.exists(frontend_dir):
-    # Fallback: 也许是在本地测试，结构不同
-    frontend_dir = "frontend"
+# 在 Vercel 环境中，文件结构可能略有不同，我们需要确保路径正确
+# Vercel 会将所有文件部署到根目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir) # 获取 backend 的上一级，即项目根目录
+frontend_dir = os.path.join(project_root, "frontend")
 
-app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
+if not os.path.exists(frontend_dir):
+    # 如果找不到，尝试直接在当前目录找 frontend (兼容 Vercel 的某些情况)
+    frontend_dir = os.path.join(current_dir, "frontend")
+
+# 只有当目录存在时才挂载，防止报错
+if os.path.exists(frontend_dir):
+    app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
 @app.get("/")
 async def read_index():
-    return FileResponse(os.path.join(frontend_dir, 'index.html'))
+    # 优先尝试返回 index.html
+    index_path = os.path.join(frontend_dir, 'index.html')
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "Sora2 Video Generator API is running. Frontend not found."}
 
 if __name__ == "__main__":
     import uvicorn
