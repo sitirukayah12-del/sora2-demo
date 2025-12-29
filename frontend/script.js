@@ -34,8 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            // 注意：这里假设后端运行在 localhost:8000
-            const response = await fetch('http://localhost:8000/api/generate-video', {
+            // 使用相对路径，自动适配当前域名
+            const response = await fetch('/api/generate-video', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

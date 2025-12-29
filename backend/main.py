@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import time
 import os
@@ -10,6 +12,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI()
+
+# 挂载前端静态文件 (注意：这行代码最好放在 API 路由之后，或者使用特定路径)
+# 我们将前端文件放在 'frontend' 目录，并挂载到 '/static' 路径下
+# 为了方便直接访问根目录 '/' 显示网页，我们稍微调整一下逻辑
+
 
 # 配置 CORS，允许前端跨域访问
 app.add_middleware(
@@ -73,9 +80,19 @@ async def generate_video(request: VideoRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 挂载静态文件目录
+# 确保 frontend 目录存在，如果后端运行在 backend 目录，则 frontend 在上一级
+# 如果我们在根目录运行 uvicorn，frontend 就在 ./frontend
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+if not os.path.exists(frontend_dir):
+    # Fallback: 也许是在本地测试，结构不同
+    frontend_dir = "frontend"
+
+app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
+
 @app.get("/")
-async def root():
-    return {"message": "Sora2 Video Generator API is running"}
+async def read_index():
+    return FileResponse(os.path.join(frontend_dir, 'index.html'))
 
 if __name__ == "__main__":
     import uvicorn
