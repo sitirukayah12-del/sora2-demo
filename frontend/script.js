@@ -16,6 +16,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // 强制隐藏画布 (防漏)
+        const canvasSection = document.getElementById('canvas-section');
+        if (tabId !== 'canvas' && canvasSection) {
+            canvasSection.classList.remove('active');
+            canvasSection.style.display = 'none'; // 双重保险
+        } else if (tabId === 'canvas' && canvasSection) {
+            canvasSection.style.display = ''; // 清除内联样式
+        }
+
         tabContents.forEach(content => {
             if (content.id === `${tabId}-section`) {
                 content.classList.add('active');

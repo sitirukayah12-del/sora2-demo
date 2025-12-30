@@ -94,17 +94,14 @@ body {
 
 /* Tab 切换逻辑 */
 .tab-content {
-    display: none;
-    animation: fadeIn 0.3s ease-in-out;
+    display: none !important; /* 强制隐藏非 active 内容 */
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
 }
 
 .tab-content.active {
-    display: block;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    display: block !important; /* 强制显示 active 内容 */
+    opacity: 1;
 }
 
 /* 英雄标题 */
