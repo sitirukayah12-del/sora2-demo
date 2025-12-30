@@ -11,7 +11,6 @@
         <!-- 顶部导航栏 -->
         <nav class="navbar">
             <div class="logo">
-                <span class="logo-icon">🌊</span>
                 <span style="font-weight: bold; color: #1e293b;">江左盟</span>
             </div>
             <div class="nav-links">
@@ -158,8 +157,8 @@
                     <input type="text" id="auth-username" required placeholder="请输入用户名">
                 </div>
                 <div class="form-group">
-                    <label>密码</label>
-                    <input type="password" id="auth-password" required placeholder="请输入密码">
+                    <label for="auth-password">密码</label>
+                    <input type="password" id="auth-password" placeholder="请输入密码" required maxlength="50">
                 </div>
                 <div class="form-group hidden" id="email-group">
                     <label>邮箱 (可选)</label>
@@ -207,7 +206,7 @@
     <!-- 底部版权 -->
     <footer style="text-align: center; margin-top: 50px; color: #64748b; font-size: 14px; padding-bottom: 20px;">
         <p>&copy; 2024 江左盟 AI 创意工坊. All rights reserved.</p>
-        <p><a href="/static/admin.html" style="color: #cbd5e1; text-decoration: none; font-size: 12px;">管理后台</a></p>
+        <p><a href="/admin" style="color: #94a3b8; text-decoration: none; font-size: 13px; margin-top: 10px; display: inline-block;">管理后台</a></p>
     </footer>
 
     <script src="/static/script.js"></script>

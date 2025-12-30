@@ -167,7 +167,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('登录成功！');
             }
         } catch (err) {
-            alert(err.detail || '操作失败');
+            console.error("Auth Error:", err);
+            let msg = '操作失败';
+            if (err.detail) {
+                msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+            } else if (err.message) {
+                msg = err.message;
+            }
+            alert(msg);
         }
     });
 

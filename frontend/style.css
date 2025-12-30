@@ -136,21 +136,43 @@ body {
     margin-bottom: 1.5rem;
 }
 
-textarea {
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+    font-size: 0.95rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+textarea,
+select {
     width: 100%;
-    min-height: 120px;
-    padding: 1rem;
-    border: 2px solid var(--border-color);
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     font-size: 1rem;
     font-family: inherit;
-    resize: vertical;
-    transition: border-color 0.2s;
+    transition: all 0.2s;
+    background-color: #f8fafc;
+    box-sizing: border-box;
+    color: var(--text-color);
 }
 
-textarea:focus {
+input:focus,
+textarea:focus,
+select:focus {
     outline: none;
     border-color: #ff4757;
+    background-color: white;
+    box-shadow: 0 0 0 4px rgba(255, 71, 87, 0.1);
+}
+
+textarea {
+    min-height: 120px;
+    resize: vertical;
 }
 
 .controls-row {
@@ -253,31 +275,37 @@ select {
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
 }
 
 .btn-auth {
-    padding: 8px 16px;
-    border-radius: 20px;
-    border: 1px solid #e2e8f0;
-    background: white;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #1e293b;
     transition: all 0.2s;
 }
 
 .btn-auth:hover {
-    background: #f1f5f9;
+    color: #ff4757;
+    background: transparent;
 }
 
 .btn-auth.btn-primary {
     background: #ff4757;
     color: white;
-    border-color: #ff4757;
+    padding: 8px 24px;
+    border-radius: 8px;
+    font-weight: 600;
 }
 
 .btn-auth.btn-primary:hover {
     background: #ff2e43;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(255, 71, 87, 0.2);
 }
 
 .user-balance {
@@ -334,12 +362,31 @@ select {
 
 .modal-content {
     background: white;
-    padding: 30px;
-    border-radius: 16px;
+    padding: 40px;
+    border-radius: 24px;
     width: 100%;
-    max-width: 400px;
+    max-width: 420px;
     position: relative;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-content h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #1e293b;
+    font-size: 1.8rem;
 }
 
 .modal-content.large {

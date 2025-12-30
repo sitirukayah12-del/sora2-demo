@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 import time
 import os
 from dotenv import load_dotenv
@@ -50,7 +50,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 300
 
 # 密码哈希工具
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 app = FastAPI()
@@ -160,20 +160,53 @@ class AvatarRequest(BaseModel):
     prompt: str
     text: str
 
+class PricingUpdateRequest(BaseModel):
+    password: str
+    video: float
+    image: float
+    music: float
+    avatar: float
+
+class UserAdminView(BaseModel):
+    id: int
+    username: str
+    email: Optional[str] = None
+    balance: float
+    is_active: bool = True
+    
+    class Config:
+        from_attributes = True
+
+class UserBalanceUpdate(BaseModel):
+    password: str
+    amount: float
+
 # --- Auth Routes ---
 
 @app.post("/api/auth/register", response_model=UserOut)
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.username == user.username).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    
-    hashed_password = get_password_hash(user.password)
-    new_user = User(username=user.username, hashed_password=hashed_password, email=user.email, balance=10.0) # 注册送10积分
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
+    try:
+        # 校验密码长度 (bcrypt 限制为 72 字节)
+        if len(user.password.encode('utf-8')) > 70:
+            raise HTTPException(status_code=400, detail="密码太长了，请控制在 50 个字符以内")
+
+        db_user = db.query(User).filter(User.username == user.username).first()
+        if db_user:
+            raise HTTPException(status_code=400, detail="该用户名已被注册")
+        
+        hashed_password = get_password_hash(user.password)
+        new_user = User(username=user.username, hashed_password=hashed_password, email=user.email, balance=10.0) # 注册送10积分
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+    except Exception as e:
+        print(f"Registration Error: {str(e)}")
+        db.rollback()
+        if isinstance(e, HTTPException):
+            raise e
+        # 捕获其他未知错误，但给用户更友好的提示
+        raise HTTPException(status_code=500, detail=f"注册失败: {str(e)}")
 
 @app.post("/api/auth/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -245,6 +278,45 @@ async def update_config(request: ConfigUpdateRequest):
     APP_CONFIG["heygem_api_key"] = request.heygem_api_key
     
     return {"status": "success", "message": "Configuration updated", "config": APP_CONFIG}
+
+@app.get("/api/admin/pricing")
+async def get_pricing(password: str):
+    if password != APP_CONFIG["admin_password"]:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return PRICING
+
+@app.post("/api/admin/pricing")
+async def update_pricing(request: PricingUpdateRequest):
+    if request.password != APP_CONFIG["admin_password"]:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    PRICING["video"] = request.video
+    PRICING["image"] = request.image
+    PRICING["music"] = request.music
+    PRICING["avatar"] = request.avatar
+    
+    return {"status": "success", "message": "Pricing updated", "pricing": PRICING}
+
+@app.get("/api/admin/users", response_model=List[UserAdminView])
+async def get_users(password: str, db: Session = Depends(get_db)):
+    if password != APP_CONFIG["admin_password"]:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    users = db.query(User).all()
+    return users
+
+@app.post("/api/admin/users/{user_id}/balance")
+async def update_user_balance(user_id: int, request: UserBalanceUpdate, db: Session = Depends(get_db)):
+    if request.password != APP_CONFIG["admin_password"]:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.balance = request.amount
+    db.commit()
+    db.refresh(user)
+    return {"status": "success", "message": f"User {user.username} balance updated to {request.amount}", "new_balance": request.amount}
 
 # --- Generation API Helper ---
 
@@ -335,6 +407,13 @@ if not os.path.exists(frontend_dir):
 
 if os.path.exists(frontend_dir):
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
+
+@app.get("/admin")
+async def read_admin():
+    admin_path = os.path.join(frontend_dir, 'admin.html')
+    if os.path.exists(admin_path):
+        return FileResponse(admin_path)
+    return {"message": "Admin page not found"}
 
 @app.get("/")
 async def read_index():
