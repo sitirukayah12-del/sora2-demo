@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('App Version: v1.0.1 - Fixed Tab Visibility'); // 版本标记
+
     // === 全局变量 ===
     let currentUser = null;
     const loadingOverlay = document.getElementById('global-loading');
