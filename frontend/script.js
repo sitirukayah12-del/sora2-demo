@@ -692,5 +692,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 如果默认是画布页面，初始化画布
     if (document.querySelector('.nav-item[data-tab="canvas"]').classList.contains('active')) {
         setTimeout(initCanvas, 100);
+    } else {
+        // 确保非画布页面时画布被隐藏
+        const canvasSection = document.getElementById('canvas-section');
+        if (canvasSection) {
+            canvasSection.style.display = 'none';
+        }
     }
 });
