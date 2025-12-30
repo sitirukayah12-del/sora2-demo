@@ -200,27 +200,47 @@
                         </select>
                     </div>
 
+                    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 1.1rem; border-left: 4px solid #ff4757; padding-left: 10px;">NanoPro (文生图)</h3>
                     <div class="form-group">
-                        <label>Sora2 API Key (视频)</label>
+                        <label>API Key</label>
+                        <input type="password" id="image-key" placeholder="sk-...">
+                        <label style="margin-top: 8px; font-size: 0.85rem; color: #64748b;">API Base URL (默认为 OpenAI DALL-E 3)</label>
+                        <input type="text" id="image-url" placeholder="https://api.openai.com/v1/images/generations">
+                    </div>
+
+                    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 1.1rem; border-left: 4px solid #ff4757; padding-left: 10px;">Sora2 (视频)</h3>
+                    <div class="form-group">
+                        <label>API Key</label>
                         <input type="password" id="sora-key" placeholder="sk-...">
+                        <label style="margin-top: 8px; font-size: 0.85rem; color: #64748b;">API Base URL</label>
+                        <input type="text" id="sora-url" placeholder="https://api.example.com/v1/video">
                     </div>
 
+                    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 1.1rem; border-left: 4px solid #ff4757; padding-left: 10px;">Veo (视频)</h3>
                     <div class="form-group">
-                        <label>Veo API Key (视频)</label>
+                        <label>API Key</label>
                         <input type="password" id="veo-key" placeholder="sk-...">
+                        <label style="margin-top: 8px; font-size: 0.85rem; color: #64748b;">API Base URL</label>
+                        <input type="text" id="veo-url" placeholder="https://api.example.com/v1/video">
                     </div>
 
+                    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 1.1rem; border-left: 4px solid #ff4757; padding-left: 10px;">Suno (音乐)</h3>
                     <div class="form-group">
-                        <label>Suno API Key (音乐)</label>
+                        <label>API Key</label>
                         <input type="password" id="suno-key" placeholder="sk-...">
+                        <label style="margin-top: 8px; font-size: 0.85rem; color: #64748b;">API Base URL</label>
+                        <input type="text" id="suno-url" placeholder="https://api.example.com/v1/music">
                     </div>
 
+                    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 1.1rem; border-left: 4px solid #ff4757; padding-left: 10px;">HeyGen (数字人)</h3>
                     <div class="form-group">
-                        <label>HeyGen API Key (数字人)</label>
+                        <label>API Key</label>
                         <input type="password" id="heygem-key" placeholder="sk-...">
+                        <label style="margin-top: 8px; font-size: 0.85rem; color: #64748b;">API Base URL</label>
+                        <input type="text" id="heygem-url" placeholder="https://api.example.com/v1/avatar">
                     </div>
 
-                    <button class="primary-btn" onclick="saveAdminConfig()">保存配置</button>
+                    <button class="primary-btn" style="margin-top: 30px;" onclick="saveAdminConfig()">保存配置</button>
                 </div>
             </div>
 
@@ -263,9 +283,15 @@
                     const config = await res.json();
                     document.getElementById('mock-mode').value = config.mock_mode.toString();
                     document.getElementById('sora-key').value = config.sora_api_key || '';
+                    document.getElementById('sora-url').value = config.sora_api_url || '';
                     document.getElementById('veo-key').value = config.veo_api_key || '';
+                    document.getElementById('veo-url').value = config.veo_api_url || '';
                     document.getElementById('suno-key').value = config.suno_api_key || '';
+                    document.getElementById('suno-url').value = config.suno_api_url || '';
                     document.getElementById('heygem-key').value = config.heygem_api_key || '';
+                    document.getElementById('heygem-url').value = config.heygem_api_url || '';
+                    document.getElementById('image-key').value = config.image_api_key || '';
+                    document.getElementById('image-url').value = config.image_api_url || '';
                 }
             } catch (e) {
                 console.error('Failed to load config', e);
@@ -287,9 +313,15 @@
                 password: pwd,
                 mock_mode: document.getElementById('mock-mode').value === 'true',
                 sora_api_key: document.getElementById('sora-key').value,
+                sora_api_url: document.getElementById('sora-url').value,
                 veo_api_key: document.getElementById('veo-key').value,
+                veo_api_url: document.getElementById('veo-url').value,
                 suno_api_key: document.getElementById('suno-key').value,
-                heygem_api_key: document.getElementById('heygem-key').value
+                suno_api_url: document.getElementById('suno-url').value,
+                heygem_api_key: document.getElementById('heygem-key').value,
+                heygem_api_url: document.getElementById('heygem-url').value,
+                image_api_key: document.getElementById('image-key').value,
+                image_api_url: document.getElementById('image-url').value
             };
 
             try {

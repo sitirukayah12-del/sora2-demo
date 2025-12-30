@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import time
 import os
+import requests
 from dotenv import load_dotenv
 from passlib.context import CryptContext
 from jose import JWTError, jwt
@@ -32,8 +33,13 @@ APP_CONFIG = {
     "sora_api_key": "",
     "sora_api_url": "",
     "veo_api_key": "",
+    "veo_api_url": "",
     "suno_api_key": "",
-    "heygem_api_key": ""
+    "suno_api_url": "",
+    "heygem_api_key": "",
+    "heygem_api_url": "",
+    "image_api_key": "",
+    "image_api_url": ""
 }
 
 # 定价表 (Credits)
@@ -136,9 +142,15 @@ class ConfigUpdateRequest(BaseModel):
     password: str
     mock_mode: bool
     sora_api_key: str
+    sora_api_url: str
     veo_api_key: str
+    veo_api_url: str
     suno_api_key: str
+    suno_api_url: str
     heygem_api_key: str
+    heygem_api_url: str
+    image_api_key: str
+    image_api_url: str
 
 class LoginRequest(BaseModel):
     password: str
@@ -273,9 +285,15 @@ async def update_config(request: ConfigUpdateRequest):
     
     APP_CONFIG["mock_mode"] = request.mock_mode
     APP_CONFIG["sora_api_key"] = request.sora_api_key
+    APP_CONFIG["sora_api_url"] = request.sora_api_url
     APP_CONFIG["veo_api_key"] = request.veo_api_key
+    APP_CONFIG["veo_api_url"] = request.veo_api_url
     APP_CONFIG["suno_api_key"] = request.suno_api_key
+    APP_CONFIG["suno_api_url"] = request.suno_api_url
     APP_CONFIG["heygem_api_key"] = request.heygem_api_key
+    APP_CONFIG["heygem_api_url"] = request.heygem_api_url
+    APP_CONFIG["image_api_key"] = request.image_api_key
+    APP_CONFIG["image_api_url"] = request.image_api_url
     
     return {"status": "success", "message": "Configuration updated", "config": APP_CONFIG}
 
@@ -320,6 +338,30 @@ async def update_user_balance(user_id: int, request: UserBalanceUpdate, db: Sess
 
 # --- Generation API Helper ---
 
+def call_external_api(url: str, key: str, payload: dict):
+    if not url or not key:
+         raise HTTPException(status_code=500, detail="Real API Configuration missing (URL or Key). Please configure in Admin Panel.")
+    
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        # 增加超时时间到 60s
+        response = requests.post(url, json=payload, headers=headers, timeout=60)
+        
+        if response.status_code != 200:
+            try:
+                error_detail = response.json()
+            except:
+                error_detail = response.text
+            raise HTTPException(status_code=response.status_code, detail=f"Upstream API Error: {error_detail}")
+            
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Network Error: {str(e)}")
+
 def deduct_credits(user: User, cost: float, db: Session):
     if user.balance < cost:
         raise HTTPException(status_code=402, detail=f"Insufficient balance. Required: {cost}, Available: {user.balance}")
@@ -346,7 +388,25 @@ async def generate_video(request: VideoRequest, current_user: User = Depends(get
             "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
             "message": "模拟生成视频成功 (-50 Credits)"
         }
-    return {"status": "error", "message": "Real API not configured"}
+    
+    # Real Call
+    payload = {
+        "model": "sora-1.0", # 假设模型名
+        "prompt": request.prompt,
+        "size": request.size,
+        "duration": request.duration
+    }
+    # 尝试调用
+    result = call_external_api(APP_CONFIG["sora_api_url"], APP_CONFIG["sora_api_key"], payload)
+    
+    # 假设返回结构中包含 url 或 data[0].url
+    video_url = result.get("video_url") or result.get("url") or (result.get("data") and result["data"][0].get("url"))
+    
+    if not video_url:
+        # 如果无法解析标准格式，直接返回整个结果供调试
+        return {"status": "success", "data": result, "message": "API Called (Check data for URL)"}
+        
+    return {"status": "success", "video_url": video_url, "message": "Video Generated Successfully"}
 
 @app.post("/api/generate-image")
 async def generate_image(request: ImageRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -362,7 +422,23 @@ async def generate_image(request: ImageRequest, current_user: User = Depends(get
             "image_url": "https://picsum.photos/1024/1024",
             "message": "模拟生成图片成功 (-10 Credits)"
         }
-    return {"status": "error", "message": "Real API not configured"}
+
+    # Real Call (Compatible with OpenAI DALL-E 3)
+    payload = {
+        "model": "dall-e-3",
+        "prompt": request.prompt,
+        "n": 1,
+        "size": request.size
+    }
+    
+    result = call_external_api(APP_CONFIG["image_api_url"], APP_CONFIG["image_api_key"], payload)
+    
+    image_url = result.get("image_url") or result.get("url") or (result.get("data") and result["data"][0].get("url"))
+    
+    if not image_url:
+        return {"status": "success", "data": result, "message": "API Called (Check data for URL)"}
+        
+    return {"status": "success", "image_url": image_url, "message": "Image Generated Successfully"}
 
 @app.post("/api/generate-music")
 async def generate_music(request: MusicRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -378,7 +454,21 @@ async def generate_music(request: MusicRequest, current_user: User = Depends(get
             "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
             "message": "模拟生成音乐成功 (-20 Credits)"
         }
-    return {"status": "error", "message": "Real API not configured"}
+
+    # Real Call
+    payload = {
+        "prompt": request.prompt,
+        "duration": request.duration
+    }
+    
+    result = call_external_api(APP_CONFIG["suno_api_url"], APP_CONFIG["suno_api_key"], payload)
+    
+    audio_url = result.get("audio_url") or result.get("url") or (result.get("data") and result["data"][0].get("url"))
+    
+    if not audio_url:
+        return {"status": "success", "data": result, "message": "API Called (Check data for URL)"}
+
+    return {"status": "success", "audio_url": audio_url, "message": "Music Generated Successfully"}
 
 @app.post("/api/generate-avatar")
 async def generate_avatar(request: AvatarRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -394,7 +484,21 @@ async def generate_avatar(request: AvatarRequest, current_user: User = Depends(g
             "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
             "message": "模拟生成数字人成功 (-30 Credits)"
         }
-    return {"status": "error", "message": "Real API not configured"}
+
+    # Real Call
+    payload = {
+        "text": request.text,
+        "prompt": request.prompt
+    }
+    
+    result = call_external_api(APP_CONFIG["heygem_api_url"], APP_CONFIG["heygem_api_key"], payload)
+    
+    video_url = result.get("video_url") or result.get("url") or (result.get("data") and result["data"][0].get("url"))
+    
+    if not video_url:
+        return {"status": "success", "data": result, "message": "API Called (Check data for URL)"}
+
+    return {"status": "success", "video_url": video_url, "message": "Avatar Generated Successfully"}
 
 # --- Static Files ---
 
