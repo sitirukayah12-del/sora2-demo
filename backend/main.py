@@ -230,7 +230,11 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="该用户名已被注册")
         
         hashed_password = get_password_hash(user.password)
-        new_user = User(username=user.username, hashed_password=hashed_password, email=user.email, balance=10.0) # 注册送10积分
+        
+        # 处理可选的 email，如果为空字符串则存为 None
+        email_to_save = user.email if user.email and user.email.strip() else None
+        
+        new_user = User(username=user.username, hashed_password=hashed_password, email=email_to_save, balance=10.0) # 注册送10积分
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
