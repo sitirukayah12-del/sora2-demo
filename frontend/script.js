@@ -19,6 +19,10 @@ document.addEventListener('DOMContentLoaded', () => {
         tabContents.forEach(content => {
             if (content.id === `${tabId}-section`) {
                 content.classList.add('active');
+                // 如果是画布 Tab，延迟初始化（确保 DOM 可见）
+                if (tabId === 'canvas') {
+                    setTimeout(initCanvas, 100);
+                }
             } else {
                 content.classList.remove('active');
             }
@@ -240,8 +244,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             loadingOverlay.classList.remove('hidden');
-            const resultContainer = document.getElementById(resultContainerId);
-            resultContainer.innerHTML = '';
+            const resultContainer = resultContainerId ? document.getElementById(resultContainerId) : null;
+            if (resultContainer) resultContainer.innerHTML = '';
 
             const data = await fetchWithAuth(endpoint, {
                 method: 'POST',
@@ -249,9 +253,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (data) {
-                renderCallback(resultContainer, data);
+                if (renderCallback) renderCallback(resultContainer, data);
                 // 刷新余额
                 checkAuth();
+                return data; // Return data for caller
             }
 
         } catch (error) {
@@ -346,6 +351,335 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // ===================================================
+    // === Nano2 Canvas Logic (Fabric.js Implementation) ===
+    // ===================================================
+    let canvas = null;
+    let currentTool = 'select';
+    let generationFrame = null;
+
+    window.initCanvas = function() {
+        if (canvas) return; // 避免重复初始化
+
+        // 获取父容器宽度
+        const container = document.getElementById('canvas-wrapper');
+        const width = container.clientWidth;
+        const height = container.clientHeight || 650;
+
+        canvas = new fabric.Canvas('main-canvas', {
+            width: width,
+            height: height,
+            backgroundColor: 'transparent', // Transparent to show CSS grid background
+            isDrawingMode: false
+        });
+
+        // 自适应窗口大小
+        window.addEventListener('resize', () => {
+            if(canvas) {
+                canvas.setWidth(container.clientWidth);
+                canvas.setHeight(container.clientHeight);
+            }
+        });
+
+        console.log("Canvas Initialized");
+
+            // --- Zoom & Pan ---
+            canvas.on('mouse:wheel', function(opt) {
+                var delta = opt.e.deltaY;
+                var zoom = canvas.getZoom();
+                zoom *= 0.999 ** delta;
+                if (zoom > 5) zoom = 5;
+                if (zoom < 0.1) zoom = 0.1;
+                canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+                opt.e.preventDefault();
+                opt.e.stopPropagation();
+            });
+
+            let isDragging = false;
+            let lastPosX, lastPosY;
+
+            canvas.on('mouse:down', function(opt) {
+                var evt = opt.e;
+                if (currentTool === 'hand' || evt.altKey === true) {
+                    isDragging = true;
+                    canvas.selection = false;
+                    lastPosX = evt.clientX;
+                    lastPosY = evt.clientY;
+                }
+            });
+
+            canvas.on('mouse:move', function(opt) {
+                if (isDragging) {
+                    var e = opt.e;
+                    var vpt = canvas.viewportTransform;
+                    vpt[4] += e.clientX - lastPosX;
+                    vpt[5] += e.clientY - lastPosY;
+                    canvas.requestRenderAll();
+                    lastPosX = e.clientX;
+                    lastPosY = e.clientY;
+                }
+            });
+
+            canvas.on('mouse:up', function(opt) {
+                if(isDragging) {
+                    canvas.setViewportTransform(canvas.viewportTransform);
+                    isDragging = false;
+                    // Restore selection if not in hand mode (optional, but keep simple)
+                    if (currentTool !== 'hand') canvas.selection = true;
+                }
+            });
+        };
+
+        window.setCanvasTool = function(tool) {
+        if (!canvas) return;
+
+        currentTool = tool;
+        
+        // Update UI
+        document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+        // Find button by onclick attr content (simple hack) or add IDs later. 
+        // For now, let's rely on event bubbling logic in HTML or manual selection
+        const btn = document.querySelector(`.tool-btn[onclick*="'${tool}'"]`);
+        if(btn) btn.classList.add('active');
+
+        // Logic
+        canvas.isDrawingMode = false;
+        canvas.selection = true;
+
+        if (tool === 'brush') {
+            canvas.isDrawingMode = true;
+            canvas.freeDrawingBrush.width = 5;
+            canvas.freeDrawingBrush.color = '#000000';
+        } else if (tool === 'hand') {
+            canvas.selection = false;
+            canvas.defaultCursor = 'grab';
+            canvas.hoverCursor = 'grab';
+        } else if (tool === 'select') {
+            // Default behavior
+            canvas.selection = true;
+            canvas.defaultCursor = 'default';
+        } else if (tool === 'rect') {
+            const rect = new fabric.Rect({
+                left: 100, top: 100, fill: 'transparent', stroke: '#000', strokeWidth: 2,
+                width: 100, height: 100
+            });
+            canvas.add(rect);
+            canvas.setActiveObject(rect);
+            setCanvasTool('select'); // Switch back to select after adding
+        } else if (tool === 'circle') {
+            const circle = new fabric.Circle({
+                left: 150, top: 150, radius: 50, fill: 'transparent', stroke: '#000', strokeWidth: 2
+            });
+            canvas.add(circle);
+            canvas.setActiveObject(circle);
+            setCanvasTool('select');
+        } else if (tool === 'text') {
+            const text = new fabric.IText('Hello AI', {
+                left: 200, top: 200, fontSize: 24
+            });
+            canvas.add(text);
+            canvas.setActiveObject(text);
+            setCanvasTool('select');
+        }
+    };
+
+    window.clearCanvas = function() {
+        if(confirm('确定清空画布吗？')) {
+            canvas.clear();
+            canvas.setBackgroundColor('transparent', canvas.renderAll.bind(canvas));
+        }
+    };
+
+    window.addGenFrame = function() {
+        if (!canvas) return;
+        
+        // Remove existing frame if any (optional, or allow multiple)
+        if (generationFrame) {
+            canvas.remove(generationFrame);
+        }
+
+        generationFrame = new fabric.Rect({
+            left: canvas.width / 2 - 150,
+            top: canvas.height / 2 - 150,
+            width: 300,
+            height: 300,
+            fill: 'transparent',
+            stroke: '#ff4757',
+            strokeWidth: 2,
+            strokeDashArray: [5, 5],
+            selectable: true,
+            hasControls: true
+        });
+
+        canvas.add(generationFrame);
+        canvas.setActiveObject(generationFrame);
+        canvas.requestRenderAll();
+        alert('已添加生成框。请调整大小和位置，然后在下方输入提示词生成。');
+    };
+
+    window.handleImageUpload = function(input) {
+        const file = input.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            fabric.Image.fromURL(e.target.result, function(img) {
+                img.scaleToWidth(300);
+                canvas.add(img);
+                canvas.centerObject(img);
+                canvas.setActiveObject(img);
+            });
+        };
+        reader.readAsDataURL(file);
+        input.value = ''; // Reset
+    };
+
+    window.generateOnCanvas = async function() {
+        if (!canvas) return;
+        const prompt = document.getElementById('canvas-prompt').value.trim();
+        if (!prompt) return alert('请输入生成提示词');
+
+        // Capture area
+        // If Generation Frame exists, capture that area. Else capture whole canvas.
+        let dataURL;
+        let targetRect = generationFrame;
+
+        // Temporarily hide the frame border for capture if it's the target
+        // But usually we want to send the CONTENT inside the frame.
+        
+        if (targetRect) {
+            // Hide the frame itself before capturing
+            targetRect.visible = false;
+            canvas.renderAll();
+
+            // Clone the canvas content cropped to the rect
+            // Method: Use toDataURL with cropping
+            dataURL = canvas.toDataURL({
+                left: targetRect.left,
+                top: targetRect.top,
+                width: targetRect.getScaledWidth(),
+                height: targetRect.getScaledHeight(),
+                format: 'png'
+            });
+
+            // Show it back
+            targetRect.visible = true;
+            canvas.renderAll();
+        } else {
+            // Whole canvas
+            dataURL = canvas.toDataURL({ format: 'png' });
+        }
+
+        // Call API
+        // We'll reuse generate-image or make a new one. Let's make a new logic or reuse generate-image with init_image
+        // Currently generate-image only takes prompt. We need to update backend or use a new endpoint.
+        // Let's assume we update backend to accept 'init_image'
+        
+        const payload = {
+            prompt: prompt,
+            init_image: dataURL // Base64
+        };
+
+        // UI Loading state
+        const btn = document.querySelector('.canvas-gen-panel .primary-btn');
+        const originalText = btn.textContent;
+        btn.textContent = '生成中...';
+        btn.disabled = true;
+
+        try {
+            // Using a new endpoint /api/generate-canvas or reusing image
+            // Let's use /api/generate-canvas for clarity
+            const data = await callApi('/api/generate-canvas', payload, null, null);
+            
+            if (data && data.image_url) {
+                // Add result to canvas
+                fabric.Image.fromURL(data.image_url, function(img) {
+                    if (targetRect) {
+                        img.set({
+                            left: targetRect.left,
+                            top: targetRect.top,
+                            scaleX: targetRect.getScaledWidth() / img.width,
+                            scaleY: targetRect.getScaledHeight() / img.height
+                        });
+                        // Remove frame? or Keep it.
+                    } else {
+                        img.scaleToWidth(300);
+                        canvas.centerObject(img);
+                    }
+                    canvas.add(img);
+                    canvas.setActiveObject(img);
+                });
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    };
+
+    // === 7. Prompt Templates Logic ===
+    
+    window.applyTemplate = function(content) {
+        if (!content) return;
+        const textarea = document.getElementById('canvas-prompt');
+        textarea.value = content;
+        textarea.focus();
+    };
+
+    async function loadCanvasTemplates() {
+        try {
+            const res = await fetch('/api/templates');
+            if (res.ok) {
+                const templates = await res.json();
+                renderCanvasTemplates(templates);
+            }
+        } catch (e) {
+            console.error("Failed to load templates", e);
+        }
+    }
+
+    function renderCanvasTemplates(templates) {
+        const quickContainer = document.getElementById('quick-templates');
+        const moreSelect = document.getElementById('more-templates');
+        
+        if (!quickContainer || !moreSelect) return;
+
+        quickContainer.innerHTML = '';
+        moreSelect.innerHTML = '<option value="">更多效果...</option>';
+
+        // Top 4 as chips
+        const topTemplates = templates.slice(0, 4);
+        topTemplates.forEach(tpl => {
+            const chip = document.createElement('div');
+            chip.textContent = tpl.name;
+            chip.style.cssText = 'background:#f1f5f9; padding:4px 10px; border-radius:20px; font-size:0.75rem; cursor:pointer; white-space:nowrap; border:1px solid transparent; flex-shrink:0;';
+            chip.onclick = () => applyTemplate(tpl.content);
+            
+            // Hover effect
+            chip.onmouseover = () => { chip.style.background = '#e2e8f0'; chip.style.borderColor = '#cbd5e1'; };
+            chip.onmouseout = () => { chip.style.background = '#f1f5f9'; chip.style.borderColor = 'transparent'; };
+            
+            quickContainer.appendChild(chip);
+        });
+
+        // All as options
+        templates.forEach(tpl => {
+            const option = document.createElement('option');
+            option.value = tpl.content;
+            option.textContent = tpl.name;
+            moreSelect.appendChild(option);
+        });
+    }
+
+    // Load on init
+    loadCanvasTemplates();
+
     // 初始化检查
     checkAuth();
+
+    // 如果默认是画布页面，初始化画布
+    if (document.querySelector('.nav-item[data-tab="canvas"]').classList.contains('active')) {
+        setTimeout(initCanvas, 100);
+    }
 });

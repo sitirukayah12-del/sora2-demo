@@ -16,9 +16,9 @@ from jose import JWTError, jwt
 
 # 尝试导入数据库模块 (兼容不同的运行方式)
 try:
-    from backend.database import SessionLocal, engine, Base, User, Transaction
+    from backend.database import SessionLocal, engine, Base, User, Transaction, PromptTemplate
 except ImportError:
-    from database import SessionLocal, engine, Base, User, Transaction
+    from database import SessionLocal, engine, Base, User, Transaction, PromptTemplate
 
 # 加载环境变量
 load_dotenv()
@@ -172,6 +172,11 @@ class AvatarRequest(BaseModel):
     prompt: str
     text: str
 
+class CanvasRequest(BaseModel):
+    prompt: str
+    init_image: Optional[str] = None
+    size: str = "1024x1024"
+
 class PricingUpdateRequest(BaseModel):
     password: str
     video: float
@@ -192,6 +197,24 @@ class UserAdminView(BaseModel):
 class UserBalanceUpdate(BaseModel):
     password: str
     amount: float
+
+class PromptTemplateBase(BaseModel):
+    name: str
+    content: str
+    category: str = "general"
+    is_active: bool = True
+
+class PromptTemplateCreate(PromptTemplateBase):
+    pass
+
+class PromptTemplateUpdate(PromptTemplateBase):
+    pass
+
+class PromptTemplateOut(PromptTemplateBase):
+    id: int
+
+    class Config:
+        from_attributes = True
 
 # --- Auth Routes ---
 
@@ -335,6 +358,58 @@ async def update_user_balance(user_id: int, request: UserBalanceUpdate, db: Sess
     db.commit()
     db.refresh(user)
     return {"status": "success", "message": f"User {user.username} balance updated to {request.amount}", "new_balance": request.amount}
+
+# --- Template Routes ---
+
+@app.get("/api/templates", response_model=List[PromptTemplateOut])
+async def get_public_templates(db: Session = Depends(get_db)):
+    return db.query(PromptTemplate).filter(PromptTemplate.is_active == True).all()
+
+@app.get("/api/admin/templates", response_model=List[PromptTemplateOut])
+async def get_all_templates(password: str, db: Session = Depends(get_db)):
+    if password != APP_CONFIG["admin_password"]:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return db.query(PromptTemplate).all()
+
+@app.post("/api/admin/templates", response_model=PromptTemplateOut)
+async def create_template(request: PromptTemplateCreate, password: str, db: Session = Depends(get_db)):
+    if password != APP_CONFIG["admin_password"]:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    db_template = PromptTemplate(**request.dict())
+    db.add(db_template)
+    db.commit()
+    db.refresh(db_template)
+    return db_template
+
+@app.put("/api/admin/templates/{template_id}", response_model=PromptTemplateOut)
+async def update_template(template_id: int, request: PromptTemplateUpdate, password: str, db: Session = Depends(get_db)):
+    if password != APP_CONFIG["admin_password"]:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    db_template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    if not db_template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    for key, value in request.dict().items():
+        setattr(db_template, key, value)
+    
+    db.commit()
+    db.refresh(db_template)
+    return db_template
+
+@app.delete("/api/admin/templates/{template_id}")
+async def delete_template(template_id: int, password: str, db: Session = Depends(get_db)):
+    if password != APP_CONFIG["admin_password"]:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    db_template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    if not db_template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    db.delete(db_template)
+    db.commit()
+    return {"status": "success", "message": "Template deleted"}
 
 # --- Generation API Helper ---
 
@@ -499,6 +574,46 @@ async def generate_avatar(request: AvatarRequest, current_user: User = Depends(g
         return {"status": "success", "data": result, "message": "API Called (Check data for URL)"}
 
     return {"status": "success", "video_url": video_url, "message": "Avatar Generated Successfully"}
+
+@app.post("/api/generate-canvas")
+async def generate_canvas(request: CanvasRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deduct_credits(current_user, PRICING["image"], db)
+    
+    if not request.prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+    
+    if APP_CONFIG["mock_mode"]:
+        time.sleep(2)
+        # Random image to simulate change
+        return {
+            "status": "success",
+            "image_url": f"https://picsum.photos/1024/1024?random={int(time.time())}",
+            "message": "模拟画布生成成功 (-10 Credits)"
+        }
+
+    # Real Call (Compatible with OpenAI DALL-E 3 or similar)
+    payload = {
+        "model": "dall-e-3",
+        "prompt": request.prompt,
+        "n": 1,
+        "size": request.size
+    }
+    
+    if request.init_image:
+        # Pass base64 image if provider supports it in payload
+        payload["image"] = request.init_image
+        # Note: Standard OpenAI DALL-E 3 API via JSON usually takes text. 
+        # Edits endpoint takes FormData. 
+        # But many proxy APIs allow base64 in JSON. We assume such capability or a custom backend.
+    
+    result = call_external_api(APP_CONFIG["image_api_url"], APP_CONFIG["image_api_key"], payload)
+    
+    image_url = result.get("image_url") or result.get("url") or (result.get("data") and result["data"][0].get("url"))
+    
+    if not image_url:
+        return {"status": "success", "data": result, "message": "API Called (Check data for URL)"}
+        
+    return {"status": "success", "image_url": image_url, "message": "Canvas Generated Successfully"}
 
 # --- Static Files ---
 

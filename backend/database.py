@@ -50,3 +50,12 @@ class Transaction(Base):
     description = Column(String, nullable=True)
     timestamp = Column(Float) # Unix timestamp
 
+class PromptTemplate(Base):
+    __tablename__ = "prompt_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True) # e.g. "连环表情包"
+    content = Column(String) # The actual prompt text
+    category = Column(String, default="general") # For grouping
+    is_active = Column(Boolean, default=True)
+

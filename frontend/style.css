@@ -463,3 +463,175 @@ select {
     color: #64748b;
     margin-bottom: 20px;
 }
+
+/* --- Nano Canvas Styles (Full Screen Redesign) --- */
+
+/* Make the canvas section break out of the container to be full screen */
+#canvas-section {
+    position: fixed;
+    top: var(--nav-height); /* Below navbar */
+    left: 0;
+    width: 100vw;
+    height: calc(100vh - var(--nav-height));
+    background: #f1f5f9;
+    z-index: 90; /* Above normal content */
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0;
+    overflow: hidden;
+}
+
+/* Remove card wrapper styles for canvas */
+#canvas-section .canvas-container-wrapper {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    display: block; /* Switch from flex to block for absolute positioning of children */
+    padding: 0;
+    margin: 0;
+}
+
+/* Floating Left Toolbar */
+.canvas-toolbar {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 50px;
+    height: auto;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px 5px;
+    gap: 12px;
+    z-index: 100;
+}
+
+.tool-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    color: #64748b;
+}
+
+.tool-btn:hover {
+    background: #f8fafc;
+    color: #1e293b;
+}
+
+.tool-btn.active {
+    background: #fff1f2;
+    border-color: #ff4757;
+    color: #ff4757;
+    box-shadow: 0 2px 4px rgba(255, 71, 87, 0.1);
+}
+
+/* Full Screen Canvas Wrapper */
+#canvas-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    cursor: crosshair;
+    background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+    background-size: 20px 20px; /* Dot grid pattern */
+}
+
+/* Floating Generation Panel (Bottom Center) */
+.canvas-gen-panel {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 460px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 16px 20px;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 100;
+    transition: all 0.3s ease;
+}
+
+.canvas-gen-panel:hover {
+    box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.2);
+}
+
+.gen-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+#canvas-prompt {
+    width: 100%;
+    height: 50px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px;
+    font-family: inherit;
+    resize: none;
+    background: #f8fafc;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+
+#canvas-prompt:focus {
+    background: white;
+    border-color: #ff4757;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.1);
+}
+
+.gen-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.gen-actions .primary-btn {
+    width: auto;
+    padding: 0.5rem 1.5rem;
+    font-size: 0.9rem;
+    border-radius: 8px;
+}
+
+/* Footer Link */
+footer {
+    text-align: center;
+    margin-top: 40px;
+    padding-bottom: 20px;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+footer a {
+    color: #94a3b8;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+footer a:hover {
+    color: #ff4757;
+}

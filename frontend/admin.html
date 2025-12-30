@@ -86,6 +86,7 @@
             <div class="nav-links">
                 <div class="nav-item active" onclick="switchTab('users')">用户管理</div>
                 <div class="nav-item" onclick="switchTab('pricing')">价格配置</div>
+                <div class="nav-item" onclick="switchTab('templates')">提示词模板</div>
                 <div class="nav-item" onclick="switchTab('api')">API 设置</div>
             </div>
             <div class="nav-auth">
@@ -176,6 +177,36 @@
                 </div>
             </div>
 
+            <!-- Templates Tab -->
+            <div id="tab-templates" class="tab-content">
+                <div class="hero-text" style="text-align: left; margin-bottom: 2rem;">
+                    <h1>提示词模板</h1>
+                    <p>管理生成页面的快捷提示词模板。</p>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                    <button class="primary-btn" onclick="openTemplateModal()">+ 新增模板</button>
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>名称</th>
+                                <th>分类</th>
+                                <th>内容 (预览)</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="templates-list">
+                            <!-- Templates injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- API Tab -->
             <div id="tab-api" class="tab-content">
                 <div class="hero-text" style="text-align: left; margin-bottom: 2rem;">
@@ -245,6 +276,42 @@
             </div>
 
         </div>
+        
+        <!-- Modal for Add/Edit Template -->
+        <div id="template-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+            <div class="modal-content" style="background:white; padding:2rem; border-radius:12px; width:500px; max-width:90%;">
+                <h2 id="modal-title" style="margin-bottom:1rem;">新增模板</h2>
+                <input type="hidden" id="tpl-id">
+                <div class="form-group">
+                    <label>模板名称</label>
+                    <input type="text" id="tpl-name" placeholder="例如: 连环表情包">
+                </div>
+                <div class="form-group" style="margin-top:1rem;">
+                    <label>分类</label>
+                    <select id="tpl-category">
+                        <option value="general">通用</option>
+                        <option value="character">角色</option>
+                        <option value="commercial">商业</option>
+                        <option value="style">风格</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-top:1rem;">
+                    <label>提示词内容</label>
+                    <textarea id="tpl-content" rows="5" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;" placeholder="输入具体的提示词内容..."></textarea>
+                </div>
+                <div class="form-group" style="margin-top:1rem;">
+                    <label>状态</label>
+                    <select id="tpl-active">
+                        <option value="true">启用</option>
+                        <option value="false">禁用</option>
+                    </select>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:2rem;">
+                    <button class="secondary-btn" onclick="closeTemplateModal()">取消</button>
+                    <button class="primary-btn" onclick="saveTemplate()">保存</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -266,6 +333,7 @@
             if (tabId === 'users') loadUsers();
             if (tabId === 'pricing') loadPricing();
             if (tabId === 'api') loadApiConfig();
+            if (tabId === 'templates') loadTemplates();
         }
 
         // Auth / Config
@@ -474,6 +542,123 @@
                     alert('价格配置已保存');
                 } else {
                     alert('保存失败，请检查密码');
+                }
+            } catch (e) {
+                alert('网络错误');
+            }
+        }
+
+        // --- Templates Logic ---
+        async function loadTemplates() {
+            const pwd = getAdminPassword();
+            if (!pwd) return;
+
+            try {
+                const res = await fetch(`/api/admin/templates?password=${pwd}`);
+                if (res.status === 401) {
+                    alert('密码错误或未授权');
+                    switchTab('api');
+                    return;
+                }
+                const templates = await res.json();
+                renderTemplates(templates);
+            } catch (e) {
+                console.error('Failed to load templates', e);
+            }
+        }
+
+        function renderTemplates(templates) {
+            const tbody = document.getElementById('templates-list');
+            tbody.innerHTML = '';
+            
+            templates.forEach(tpl => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>#${tpl.id}</td>
+                    <td><strong>${tpl.name}</strong></td>
+                    <td><span style="background:#f1f5f9; padding:2px 6px; border-radius:4px; font-size:0.8rem;">${tpl.category}</span></td>
+                    <td><div style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${tpl.content}">${tpl.content}</div></td>
+                    <td>${tpl.is_active ? '<span style="color:green">● 启用</span>' : '<span style="color:gray">● 禁用</span>'}</td>
+                    <td>
+                        <button class="secondary-btn btn-small" onclick="openTemplateModal(${tpl.id}, '${tpl.name.replace(/'/g, "\\'")}', '${tpl.category}', '${tpl.content.replace(/'/g, "\\'").replace(/\n/g, "\\n")}', ${tpl.is_active})">✏️ 编辑</button>
+                        <button class="secondary-btn btn-small" style="color:red; border-color:red;" onclick="deleteTemplate(${tpl.id})">🗑️ 删除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openTemplateModal(id = null, name = '', category = 'general', content = '', active = true) {
+            document.getElementById('template-modal').style.display = 'flex';
+            document.getElementById('tpl-id').value = id || '';
+            document.getElementById('modal-title').textContent = id ? '编辑模板' : '新增模板';
+            document.getElementById('tpl-name').value = name;
+            document.getElementById('tpl-category').value = category;
+            document.getElementById('tpl-content').value = content;
+            document.getElementById('tpl-active').value = active.toString();
+        }
+
+        function closeTemplateModal() {
+            document.getElementById('template-modal').style.display = 'none';
+        }
+
+        async function saveTemplate() {
+            const pwd = getAdminPassword();
+            const id = document.getElementById('tpl-id').value;
+            const data = {
+                name: document.getElementById('tpl-name').value,
+                category: document.getElementById('tpl-category').value,
+                content: document.getElementById('tpl-content').value,
+                is_active: document.getElementById('tpl-active').value === 'true'
+            };
+
+            if (!data.name || !data.content) {
+                alert('请填写名称和内容');
+                return;
+            }
+
+            try {
+                let res;
+                if (id) {
+                    // Update
+                    res = await fetch(`/api/admin/templates/${id}?password=${pwd}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    // Create
+                    res = await fetch(`/api/admin/templates?password=${pwd}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(data)
+                    });
+                }
+
+                if (res.ok) {
+                    alert('保存成功');
+                    closeTemplateModal();
+                    loadTemplates();
+                } else {
+                    alert('保存失败');
+                }
+            } catch (e) {
+                alert('网络错误');
+            }
+        }
+
+        async function deleteTemplate(id) {
+            if(!confirm('确定要删除这个模板吗？')) return;
+            
+            const pwd = getAdminPassword();
+            try {
+                const res = await fetch(`/api/admin/templates/${id}?password=${pwd}`, {
+                    method: 'DELETE'
+                });
+                if (res.ok) {
+                    loadTemplates();
+                } else {
+                    alert('删除失败');
                 }
             } catch (e) {
                 alert('网络错误');

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>江左盟 - AI 创意工坊</title>
     <link rel="stylesheet" href="/static/style.css">
+    <!-- Fabric.js for Canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -37,7 +39,7 @@
 
         <main class="content-wrapper">
             <!-- 1. NanoPro 文生图模块 -->
-            <section id="image-section" class="tab-content active">
+            <section id="image-section" class="tab-content">
                 <div class="hero-text">
                     <h1>NanoPro 文生图</h1>
                     <p>释放你的想象力，用文字创造惊艳的图像</p>
@@ -53,15 +55,52 @@
                 </div>
             </section>
 
-            <!-- 2. Nano2 画布 (占位) -->
+            <!-- 2. Nano2 画布 -->
             <section id="canvas-section" class="tab-content">
-                <div class="hero-text">
-                    <h1>Nano2 智能画布</h1>
-                    <p>实时绘制，AI 实时补全（开发中...）</p>
-                </div>
-                <div class="placeholder-box">
-                    <p>🚧 此功能正在紧急开发中，敬请期待！</p>
-                    <button class="secondary-btn" onclick="switchTab('image')">先试试文生图</button>
+                <div class="canvas-container-wrapper">
+                    <!-- Left Toolbar -->
+                <div class="canvas-toolbar">
+                    <div class="tool-btn active" onclick="setCanvasTool('select')" title="选择 (Select)">↖</div>
+                    <div class="tool-btn" onclick="setCanvasTool('hand')" title="拖拽 (Pan)">✋</div>
+                    <div class="tool-btn" onclick="setCanvasTool('brush')" title="画笔 (Brush)">✏️</div>
+                        <div class="tool-btn" onclick="setCanvasTool('rect')" title="矩形 (Rectangle)">⬜</div>
+                        <div class="tool-btn" onclick="setCanvasTool('circle')" title="圆形 (Circle)">⭕</div>
+                        <div class="tool-btn" onclick="setCanvasTool('text')" title="文字 (Text)">T</div>
+                        <div class="tool-btn" onclick="addGenFrame()" title="生成框 (Generation Frame)">✨</div>
+                        <div class="tool-btn" onclick="clearCanvas()" title="清空 (Clear)">🗑️</div>
+                        <input type="file" id="imgUpload" style="display:none" onchange="handleImageUpload(this)">
+                        <div class="tool-btn" onclick="document.getElementById('imgUpload').click()" title="上传图片 (Upload)">📁</div>
+                    </div>
+
+                    <!-- Main Canvas Area -->
+                    <div id="canvas-wrapper">
+                        <canvas id="main-canvas"></canvas>
+                    </div>
+
+                    <!-- Floating Generation Panel -->
+                    <div class="canvas-gen-panel">
+                        <div class="gen-header">
+                            <span>✨ AI 生成 (选定区域)</span>
+                        </div>
+                        <textarea id="canvas-prompt" placeholder="描述你想在选定区域生成的内容..."></textarea>
+                        
+                        <!-- Template Bar -->
+                        <div class="template-bar-container" style="margin: 8px 0;">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
+                                <span style="font-size:0.75rem; color:#64748b;">快捷提示词:</span>
+                                <select id="more-templates" onchange="applyTemplate(this.value)" style="font-size:0.75rem; border:1px solid #e2e8f0; border-radius:4px; padding:2px 4px; max-width: 100px;">
+                                    <option value="">更多效果...</option>
+                                </select>
+                            </div>
+                            <div id="quick-templates" style="display:flex; gap:6px; flex-wrap:wrap;">
+                                <!-- Chips injected by JS -->
+                            </div>
+                        </div>
+
+                        <div class="gen-actions">
+                            <button class="primary-btn" onclick="generateOnCanvas()">生成 / 修改</button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
